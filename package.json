@@ -1,0 +1,24 @@
+{
+  "name": "nearby",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "check": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@netlify/database": "latest",
+    "@netlify/functions": "latest",
+    "@netlify/identity": "latest",
+    "drizzle-orm": "beta"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "drizzle-kit": "beta",
+    "typescript": "latest",
+    "vite": "^7.0.0"
+  }
+}
