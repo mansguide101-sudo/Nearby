@@ -65,13 +65,15 @@ h2.sec{font-size:1.15rem;margin:22px 0 8px}
 <body>
 <header><h1>Nearby</h1><div class="acct" id="acct"></div></header>
 <nav id="nav"></nav>
-<main id="app"><div class="empty">Connecting to the shared database…</div></main>
+<main id="app"><div class="empty">Loading Nearby…</div></main>
+<noscript><div class="empty">Enable JavaScript to browse businesses and book a visit.</div></noscript>
 <div class="modal" id="modal" onclick="if(event.target===this)closeM()"><div class="sheet" id="sheet"></div></div>
 <div id="toast" role="status"></div>
+<script type="module" src="/src/auth.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let db,user,me={id:null},isAdmin=false,canWrite=true,view='discover',q='',cat='All',sort='rating',bizSel=null,sel=null,rate=null,F=null,armed=null,tok=0,pend=0,BK=[];
+let me={id:null},isAdmin=false,canWrite=false,view='discover',q='',cat='All',sort='rating',bizSel=null,sel=null,rate=null,F=null,armed=null,tok=0,pend=0,BK=[],people={},loadError='',loadVersion=0;
 const D={biz:[],raw:[],bookings:{},responses:{},reviews:{},listings:{}};
 const SLOTS=['09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00'];
 const RESOLVED=['completed','late','declined','noshow'];
@@ -79,8 +81,8 @@ const lbl={pending:'Waiting for business',confirmed:'Confirmed',completed:'Compl
 const biz=id=>D.biz.find(b=>b.id===id);
 const myBiz=()=>D.biz.filter(b=>b.ownerId&&b.ownerId===me.id);
 const canBiz=()=>isAdmin||myBiz().length>0;
-const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-const days=()=>Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return{v:iso(d),l:d.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})}});
+const iso=d=>d.toISOString().slice(0,10);
+const days=()=>Array.from({length:7},(_,i)=>{const d=new Date();d.setUTCDate(d.getUTCDate()+i);return{v:iso(d),l:d.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short',timeZone:'UTC'})}});
 const stars=r=>{const n=Math.round(r);return '★'.repeat(n)+'☆'.repeat(5-n)};
 const cls=e=>e==null?'':e>=90?'ok':e>=75?'mid':'bad';
 const toast=m=>{const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2600)};
@@ -94,7 +96,7 @@ function calc(){
  for(const c in D.bookings)for(const id in D.bookings[c]){
   const k={...D.bookings[c][id],id,cid:c,key:c+'~'+id},b=biz(k.bid);
   const r=b&&b.ownerId&&D.responses[b.ownerId]&&D.responses[b.ownerId][k.key];
-  k.st=k.cancelled?'cancelled':(r?r.status:'pending');
+  k.st=k.cancelled?'cancelled':(k.status||(r?r.status:'pending'));
   k.rv=D.reviews[c]&&D.reviews[c][id]&&['completed','late'].includes(k.st)?D.reviews[c][id]:null;
   a.push(k)}
  BK=a.sort((x,y)=>(y.created||0)-(x.created||0));
@@ -103,24 +105,31 @@ function stats(b){const s=b.base||{};let rc=s.rc||0,rs=s.rs||0,res=s.res||0,ot=s
  BK.forEach(k=>{if(k.bid!==b.id)return;if(RESOLVED.includes(k.st))res++;if(k.st==='completed')ot++;if(k.rv){rc++;rs+=k.rv.stars}});
  return{r:rc?rs/rc:0,rc,e:res?Math.round(100*ot/res):null}}
 const taken=(bid,d,t)=>BK.some(k=>k.bid===bid&&k.date===d&&k.time===t&&['pending','confirmed'].includes(k.st));
-async function put(coll,uid,id,val){const r=db.doc(coll+'/'+uid);if(D[coll][uid])await r.update({items:{[id]:val}});else await r.set({items:{[id]:val}})}
-async function drop(coll,uid,id){const cur={...(D[coll][uid]||{})};delete cur[id];await db.doc(coll+'/'+uid).set({items:cur})}
-async function wr(f,ok){try{await f();if(ok)toast(ok);return true}catch(e){toast(e.code==='quota_exceeded'?'The database is full. Ask the admin to clear old data.':'Could not save. Your account may not have contributor access.');return false}}
-async function nm(ids){const ps=await user.profiles([...new Set(ids.filter(Boolean))]);return id=>(ps[id]&&ps[id].name)||'Customer'}
+async function api(path,method='GET',body){let response;try{response=await fetch('/api/'+path,{method,credentials:'same-origin',headers:body?{'Content-Type':'application/json','X-Requested-With':'Nearby'}:{},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(15000)})}catch{throw new Error('The booking service is taking too long to respond. Please try again.')}
+ let data;try{data=await response.json()}catch{throw new Error('The booking service is unavailable. Please try again.')}
+ if(!response.ok)throw new Error(data.error||'Could not save. Please try again.');return data}
+async function put(coll,uid,id,val){return api(coll,'POST',{id,value:val})}
+async function drop(coll,uid,id){return api(coll,'DELETE',{id})}
+async function refreshData(){const version=++loadVersion;const data=await api('data');if(version!==loadVersion)return;
+ D.raw=data.raw;for(const key of ['bookings','responses','reviews','listings'])D[key]=data[key];people=data.profiles;me=data.me;isAdmin=data.isAdmin;canWrite=Boolean(me.id);loadError='';
+ calc();if((view==='admin'&&!isAdmin)||(view==='biz'&&!canBiz())||(view==='mine'&&!me.id))view='discover';
+ $('app').innerHTML='';await draw()}
+async function wr(f,ok){try{await f();try{await refreshData()}catch{toast('Saved. Reload the page to see the latest data.');return true}if(ok)toast(ok);return true}catch(e){toast(e.message||'Could not save. Please try again.');return false}}
+async function nm(ids){return id=>(people[id]&&people[id].name)||'Customer'}
 
 // ---------- shared pieces ----------
 const ring=e=>`<div class="ring ${cls(e)}" style="--p:${e==null?0:e}" title="Efficiency rate: share of resolved bookings that were completed on time"><span>${e==null?'New':e+'%'}</span></div>`;
 function sched(){if(pend)return;pend=1;requestAnimationFrame(()=>{pend=0;calc();draw()})}
-function nav(){const t=[['discover','Discover'],['mine','My bookings'],canBiz()&&['biz','Business'],isAdmin&&['admin','Admin']].filter(Boolean);
+function nav(){const t=[['discover','Discover'],me.id&&['mine','My bookings'],canBiz()&&['biz','Business'],isAdmin&&['admin','Admin']].filter(Boolean);
  $('nav').innerHTML=t.map(([k,l])=>`<button class="${view===k?'on':''}" onclick="go('${k}')">${l}</button>`).join('')}
 function go(v){view=v;$('app').innerHTML='';draw()}
-function acct(){$('acct').innerHTML=`<img alt="" src="${esc(me.avatarUrl||'')}"><span>${esc(me.name||'You')}${me.email?' ('+esc(me.email)+')':''} · ${isAdmin?'Admin':myBiz().length?'Business owner':'Client'}</span>`}
+function acct(){$('acct').innerHTML=me.id?`<span>${esc(me.name||'You')} · ${isAdmin?'Admin':myBiz().length?'Business owner':'Client'}</span><button class="btn ghost sm" onclick="signOut()">Sign out</button>`:'<button class="btn sm" onclick="openAuth()">Sign in</button>'}
 async function draw(){nav();acct();
- if(!me.id){$('app').innerHTML='<div class="empty">Sign in to claude.ai to browse and book.</div>';return}
+ if(view!=='discover'&&!me.id){view='discover'}
  if(view==='discover'){if(!$('grid'))shell();fillGrid()}
  else{const t=++tok,h=view==='mine'?await vMine():view==='biz'?await vBiz():await vAdmin();if(t===tok)$('app').innerHTML=h}}
 function shell(){const cats=['All',...new Set(D.biz.map(b=>b.cat))];
- $('app').innerHTML=(canWrite?'':'<div class="note">You can browse, but your access level does not allow booking. Ask the owner for contributor access.</div>')+`<div class="tools"><input placeholder="Search businesses or services" value="${esc(q)}" oninput="q=this.value;fillGrid()" aria-label="Search">
+ $('app').innerHTML=(loadError?`<div class="note" role="alert">${esc(loadError)} <button class="btn ghost sm" onclick="retryLoad()">Try again</button></div>`:'')+(canWrite?'':'<div class="note">Browse local businesses. <button class="btn ghost sm" onclick="openAuth()">Sign in to book</button></div>')+`<div class="tools"><input placeholder="Search businesses or services" value="${esc(q)}" oninput="q=this.value;fillGrid()" aria-label="Search">
  <select onchange="cat=this.value;fillGrid()" aria-label="Category">${cats.map(c=>`<option ${c===cat?'selected':''}>${esc(c)}</option>`).join('')}</select>
  <select onchange="sort=this.value;fillGrid()" aria-label="Sort"><option value="rating" ${sort==='rating'?'selected':''}>Top rated</option><option value="eff" ${sort==='eff'?'selected':''}>Most efficient</option><option value="name" ${sort==='name'?'selected':''}>Name A–Z</option></select></div><div class="grid" id="grid"></div>`}
 function fillGrid(){const g=$('grid');if(!g)return;
@@ -128,7 +137,7 @@ function fillGrid(){const g=$('grid');if(!g)return;
  l.sort((a,c)=>sort==='rating'?c.s.r-a.s.r:sort==='eff'?(c.s.e??-1)-(a.s.e??-1):a.b.name.localeCompare(c.b.name));
  g.innerHTML=l.length?l.map(({b,s})=>`<article class="card biz"><div class="top"><div class="em" aria-hidden="true">${esc(b.em||'🏪')}</div><div><h2 style="font-size:1.15rem">${esc(b.name)}</h2><div class="meta">${esc(b.cat)} · ${esc(b.addr)}</div></div></div>
  <div class="stats">${ring(s.e)}<div><span class="stars">${stars(s.r)}</span> <b>${s.rc?s.r.toFixed(1):'–'}</b><div class="meta">${s.rc} reviews · ${s.e==null?'no efficiency data yet':s.e+'% efficiency'}</div></div></div>
- <div class="row"><button class="btn" onclick="openBiz('${b.id}')">Book or meet</button></div></article>`).join(''):'<div class="empty">No businesses yet. An admin can add them in the Admin tab.</div>'}
+ <div class="row"><button class="btn" onclick="openBiz('${b.id}')">Book or meet</button></div></article>`).join(''):(D.biz.length?'<div class="empty">No matching businesses. Try another search or category.</div>':'<div class="empty"><h2>Welcome to Nearby</h2><p>Local business listings appear here once an administrator adds them.</p></div>')}
 
 // ---------- client ----------
 function openBiz(id){sel={bid:id,svc:0,date:days()[0].v,time:null,flag:0};drawBiz();openM()}
@@ -138,12 +147,12 @@ function drawBiz(){const b=biz(sel.bid),s=stats(b),ds=days(),sv=b.services||[];
  <div class="stats">${ring(s.e)}<div><span class="stars">${stars(s.r)}</span> <b>${s.rc?s.r.toFixed(1):'–'}</b><div class="meta">${s.rc} ratings · efficiency ${s.e==null?'not yet measured':s.e+'%'}<br>Efficiency = resolved bookings completed on time.</div></div></div>
  <h3>Choose a service</h3>${sv.map((x,i)=>`<button class="svc ${sel.svc===i?'on':''}" onclick="sel.svc=${i};drawBiz()"><span>${esc(x.n)}<br><span class="meta">${x.min} min</span></span><b>${x.price?'$'+x.price:'Free'}</b></button>`).join('')}
  <h3>Pick a day</h3><div class="row">${ds.map(d=>`<button class="chip ${sel.date===d.v?'on':''}" onclick="sel.date='${d.v}';sel.time=null;drawBiz()">${d.l}</button>`).join('')}</div>
- <h3>Pick a time</h3><div class="row">${SLOTS.map(t=>`<button class="chip ${sel.time===t?'on':''}" ${taken(b.id,sel.date,t)?'disabled':''} onclick="sel.time='${t}';drawBiz()">${t}</button>`).join('')}</div>
- <div class="row" style="margin-top:16px"><button class="btn" ${sel.time&&canWrite&&!sel.flag?'':'disabled'} onclick="book()">Request booking</button>${canWrite?'':'<span class="meta">Booking needs contributor access.</span>'}</div>
+ <h3>Pick a time <span class="meta">(UTC)</span></h3><div class="row">${SLOTS.map(t=>`<button class="chip ${sel.time===t?'on':''}" ${taken(b.id,sel.date,t)||new Date(sel.date+'T'+t+':00Z')<=new Date()?'disabled':''} onclick="sel.time='${t}';drawBiz()">${t}</button>`).join('')}</div>
+ <div class="row" style="margin-top:16px"><button class="btn" ${sel.time&&canWrite&&!sel.flag?'':'disabled'} onclick="book()">Request booking</button>${canWrite?'':'<button class="btn ghost" onclick="openAuth()">Sign in to book</button>'}</div>
  <h3>Reviews</h3>${BK.filter(k=>k.bid===b.id&&k.rv&&k.rv.text).slice(0,8).map(k=>`<div class="rev"><span class="stars">${stars(k.rv.stars)}</span><br>${esc(k.rv.text)}</div>`).join('')||'<div class="meta">No written reviews yet.</div>'}`}
 async function book(){const b=biz(sel.bid),s=(b.services||[])[sel.svc];if(!s||!sel.time)return;
  if(taken(b.id,sel.date,sel.time)){toast('That time was just taken. Pick another.');drawBiz();return}
- sel.flag=1;const id='k'+Date.now().toString(36);
+ sel.flag=1;const id='k'+crypto.randomUUID();
  const ok=await wr(()=>put('bookings',me.id,id,{bid:b.id,svc:s.n,price:s.price||0,date:sel.date,time:sel.time,created:Date.now()}),'Booking requested. '+b.name+' will confirm shortly.');
  sel.flag=0;if(ok){closeM();go('mine')}else drawBiz()}
 async function vMine(){const l=BK.filter(k=>k.cid===me.id);if(!l.length)return '<div class="empty">No bookings yet. Find a business in Discover and book a time.</div>';
@@ -172,7 +181,7 @@ async function vBiz(){const list=isAdmin?D.biz:myBiz();if(!list.length)return '<
  ${b.ownerId?'':`<div class="note">This business has no owner yet, so bookings can't be answered. <button class="btn sm" onclick="assignMe('${b.id}')">Assign to me</button></div>`}
  <p class="meta">Efficiency rises when bookings are completed on time. Declines, late work and no-shows lower it.</p>
  ${l.length?'<div class="list">'+l.map(k=>bkRow(k,n,b,can&&b.ownerId)).join('')+'</div>':'<div class="empty">No bookings for this business yet.</div>'}`}
-const assignMe=id=>wr(()=>db.doc('businesses/'+id).update({ownerId:me.id}),'Assigned to you');
+const assignMe=id=>wr(()=>put('businesses',me.id,id,{ownerId:me.id}),'Assigned to you');
 
 // ---------- admin ----------
 async function vAdmin(){const n=await nm([...BK.map(k=>k.cid),...D.biz.map(b=>b.ownerId)]);const rv=BK.filter(k=>k.rv);
@@ -185,34 +194,33 @@ async function vAdmin(){const n=await nm([...BK.map(k=>k.cid),...D.biz.map(b=>b.
  <h2 class="sec">Reviews</h2><div class="list">${rv.map(k=>`<div class="card"><span class="stars">${stars(k.rv.stars)}</span> <b>${esc(n(k.cid))}</b> on ${esc((biz(k.bid)||{}).name||'a removed business')}<div class="meta">${esc(k.rv.text||'No comment')}</div>
  <div class="row" style="margin-top:8px"><button class="btn danger sm" onclick="rm('reviews','${k.cid}','${k.id}')">Remove review</button></div></div>`).join('')||'<div class="empty">No reviews yet.</div>'}</div>`}
 const rm=(c,u,id)=>wr(()=>drop(c,u,id),'Removed');
-async function delBiz(id){if(armed!==id){armed=id;draw();setTimeout(()=>{if(armed===id){armed=null;draw()}},4000);return}armed=null;await wr(()=>db.doc('businesses/'+id).delete(),'Business deleted')}
-async function editBiz(id,mode){const b=id?biz(id):{};F={mode,id:id||'b'+Date.now().toString(36),name:b.name||'',cat:b.cat||'',em:b.em||'🏪',addr:b.addr||'',hours:b.hours||'Mon–Sat, 9:00–17:00',about:b.about||'',ownerId:b.ownerId||null,base:b.base||null,
+async function delBiz(id){if(armed!==id){armed=id;draw();setTimeout(()=>{if(armed===id){armed=null;draw()}},4000);return}armed=null;await wr(()=>drop('businesses',me.id,id),'Business deleted')}
+async function editBiz(id,mode){const b=id?biz(id):{};F={mode,id:id||'b'+crypto.randomUUID(),name:b.name||'',cat:b.cat||'',em:b.em||'🏪',addr:b.addr||'',hours:b.hours||'Mon–Sat, 9:00–17:00',about:b.about||'',ownerId:b.ownerId||null,base:b.base||null,
  sv:(b.services||[{n:'Meet & greet',min:15,price:0}]).map(s=>`${s.n} | ${s.min} | ${s.price}`).join('\n')};await drawForm();openM()}
-async function drawForm(){const n=await nm([F.ownerId]);const f=(k,l,t)=>`<label>${l}</label><input value="${esc(F[k])}" oninput="F.${k}=this.value"${t||''}>`;
+async function drawForm(){const n=await nm([F.ownerId]);const f=(k,l,t)=>`<label>${l}</label><input value="${esc(F[k])}" oninput="F.${k}=this.value;$('save-business').disabled=!F.name.trim()"${t||''}>`;
  $('sheet').innerHTML=`<h2>${F.mode==='owner'?'Edit my listing':biz(F.id)?'Edit business':'Add business'}</h2>${f('name','Business name')}${f('cat','Category')}${f('em','Emoji',' maxlength="4"')}${f('addr','Address')}${f('hours','Opening hours')}
  <label>About</label><textarea rows="2" oninput="F.about=this.value">${esc(F.about)}</textarea>
  <label>Services, one per line: name | minutes | price</label><textarea rows="4" oninput="F.sv=this.value">${esc(F.sv)}</textarea>
  ${F.mode==='owner'?'':`<label>Owner account: ${F.ownerId?esc(n(F.ownerId)):'none'}</label><input placeholder="Search people by name or email" oninput="ownerSearch(this.value)"><div id="ores" class="row" style="margin-top:6px"></div>`}
- <div class="row" style="margin-top:14px"><button class="btn" ${F.name.trim()?'':'disabled'} onclick="saveBiz()">Save business</button><button class="btn ghost" onclick="closeM()">Cancel</button></div>`}
-async function ownerSearch(v){const r=await user.search(v);$('ores').innerHTML=r.map(p=>`<button class="chip" data-id="${esc(p.id)}">${esc(p.name)}${p.email?' ('+esc(p.email)+')':''}</button>`).join('')||'<span class="meta">No matches</span>';
- $('ores').querySelectorAll('button').forEach(x=>x.onclick=()=>{F.ownerId=x.dataset.id;drawForm()})}
+ <div class="row" style="margin-top:14px"><button id="save-business" class="btn" ${F.name.trim()?'':'disabled'} onclick="saveBiz()">Save business</button><button class="btn ghost" onclick="closeM()">Cancel</button></div>`}
+let ownerSearchVersion=0;
+async function ownerSearch(v){const version=++ownerSearchVersion;try{const r=await api('people?q='+encodeURIComponent(v));if(version!==ownerSearchVersion||!$('ores'))return;
+ $('ores').innerHTML=r.map(p=>`<button class="chip" data-id="${esc(p.id)}">${esc(p.name)}${p.email?' ('+esc(p.email)+')':''}</button>`).join('')||'<span class="meta">No matches. Owners need to sign in to Nearby first.</span>';
+ $('ores').querySelectorAll('button').forEach(x=>x.onclick=()=>{F.ownerId=x.dataset.id;people[x.dataset.id]={name:x.textContent};drawForm()})}catch(e){toast(e.message)}}
 async function saveBiz(){const sv=F.sv.split('\n').map(l=>l.split('|').map(x=>x.trim())).filter(a=>a[0]).map(a=>({n:a[0],min:+a[1]||30,price:+a[2]||0}));
  const f={name:F.name.trim(),cat:F.cat.trim()||'Other',em:F.em||'🏪',addr:F.addr,hours:F.hours,about:F.about,services:sv};
  if(F.mode==='owner'){if(await wr(()=>put('listings',me.id,F.id,f),'Listing updated'))closeM();return}
  const d={...f,ownerId:F.ownerId||null};if(F.base)d.base=F.base;
- const prev=D.raw.find(x=>x.id===F.id),po=prev&&prev.ownerId;
- if(await wr(async()=>{await db.doc('businesses/'+F.id).set(d);if(po&&D.listings[po]&&D.listings[po][F.id])await drop('listings',po,F.id)},'Business saved'))closeM()}
+ if(await wr(()=>put('businesses',me.id,F.id,d),'Business saved'))closeM()}
 
 // ---------- start ----------
 async function init(){
- user=await claude.use('user');db=await claude.use('db');
- if(!db||!user){$('app').innerHTML='<div class="empty">The shared database is not available here. Open this page signed in to claude.ai.</div>';return}
- me=await user.me();isAdmin=await user.canEdit();canWrite=(await user.can('data.write'))!==false;
- const bad=e=>{$('app').innerHTML='<div class="empty">Could not load data ('+esc(e.code)+'). Reload the page.</div>'};
- db.collection('businesses').onSnapshot(s=>{D.raw=s.docs.map(d=>({id:d.id,...d.data()}));sched()},bad);
- ['bookings','responses','reviews','listings'].forEach(c=>db.collection(c).onSnapshot(s=>{const m={};s.docs.forEach(d=>{m[d.id]=(d.data()||{}).items||{}});D[c]=m;sched()},bad));
- sched()}
-(function w(n){if(window.claude)init();else if(n<100)setTimeout(()=>w(n+1),100);else $('app').innerHTML='<div class="empty">Open this page in claude.ai to connect.</div>'})(0);
+ try{await window.NearbyAuth.processCallback()}catch(e){toast(e.message||'Could not verify your sign-in link.')}
+ await retryLoad();
+ setInterval(()=>{if(!document.hidden&&!$('modal').classList.contains('open'))refreshData().catch(()=>{})},30000)}
+async function retryLoad(){try{await refreshData()}catch(e){loadError=e.message;calc();$('app').innerHTML='';view='discover';await draw()}}
+window.Nearby={refreshData,retryLoad,toast,closeM,openM,esc};
+document.addEventListener('DOMContentLoaded',init);
 </script>
 </body>
 </html>

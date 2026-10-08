@@ -1,93 +1,47 @@
-# Nearby: local business booking (self-hosted)
+# Nearby: local business booking on Netlify
 
-Node.js + Express + SQLite, with **Sign in with Google** and an admin back end.
+Nearby lets visitors browse local businesses, signed-in clients request and review visits, business owners manage their listings and bookings, and administrators manage the directory.
 
-- **Clients:** browse businesses, see rating and efficiency rate, book a time, cancel, rate completed visits.
-- **Business owners:** the Google email an admin assigns to a business. They confirm or decline bookings, mark visits done on time, late or no-show, and **edit their own listing**.
-- **Admins:** emails in `ADMIN_EMAILS`. They add, edit and delete businesses, assign owners by Google email, and remove bookings or reviews.
-- **Rating** = average of client reviews. **Efficiency rate** = resolved bookings completed on time (declines, late work and no-shows lower it).
-- The database blocks double bookings, so two people can never hold the same slot.
+The site uses a Vite frontend, Netlify Functions, Netlify Identity, and Netlify Database with Drizzle ORM. It runs independently of Claude. The previous exported HTML filename redirects to the homepage.
 
-## 1. Create a Google OAuth client
+## Deployment
 
-1. Open <https://console.cloud.google.com/apis/credentials> and pick or create a project.
-2. Configure the **OAuth consent screen** (External is fine; add your own email as a test user while testing).
-3. **Create credentials → OAuth client ID → Web application.**
-4. Under **Authorized JavaScript origins** add `http://localhost:3000` and, for production, `https://your-domain.com`.
-   You do not need a redirect URI.
-5. Copy the **Client ID**.
+`netlify.toml` configures the build command, the `dist` publish directory, and `netlify/functions`. Netlify builds the frontend and applies the generated migrations in `netlify/database/migrations` during deployment. Database tables are defined in `db/schema.ts`; do not apply schema changes manually.
 
-## 2. Run it
+Netlify Identity is enabled by the marker in `.netlify/features/netlify-identity`. Email and password sign-in, signup confirmation, password recovery, and invitation acceptance are supported. Google sign-in appears only when the Google provider is enabled in the site's Identity settings.
 
-Requires Node.js 18 or newer.
+## First-time setup
+
+1. Deploy the project to Netlify.
+2. In the project's **Identity** section, invite your administrator. After they accept the invitation, add the `admin` role to that account in the Netlify dashboard.
+3. Sign in to Nearby and open **Admin** to add businesses. A fresh database starts with no listings; no sample businesses or accounts are created.
+4. Business owners must register, confirm their email, and sign in at least once. An administrator can then search for their account by name or email when editing a business and assign ownership.
+
+Roles are checked on the server, not taken from editable user metadata. Clients can cancel and review only their own visits. Owners can edit only their assigned listings and manage those listings' bookings. Only administrators can add or delete businesses, assign owners, or remove reviews and bookings.
+
+## Local development
+
+Requires Node.js 22.12 or newer and the Netlify CLI.
 
 ```bash
 npm install
-cp .env.example .env     # then edit .env: GOOGLE_CLIENT_ID and ADMIN_EMAILS
-npm start                # http://localhost:3000
+netlify dev --port 8889
 ```
 
-Sign in with an email listed in `ADMIN_EMAILS` to see the **Admin** tab. Open it, edit a business, and type the owner's Google email.
-When that person signs in with that email, a **Business** tab appears for them.
-
-If `npm install` cannot download a prebuilt `better-sqlite3`, install build tools (`python3`, `make`, `g++`) and retry.
-
-## 3. Configuration (`.env`)
-
-| Variable | Purpose |
-|---|---|
-| `GOOGLE_CLIENT_ID` | Required. Web client ID from step 1. |
-| `ADMIN_EMAILS` | Comma-separated admin Google emails. |
-| `ALLOWED_DOMAIN` | Optional. Restrict sign-in to one Workspace domain. |
-| `DB_FILE` | SQLite file path (default `./data/nearby.db`). |
-| `TRUST_PROXY` | Set to `1` behind a reverse proxy. |
-| `SEED_DEMO` | `0` skips the six demo businesses on first start. |
-| `TZ` | Timezone for "today" and the 7 bookable days. |
-
-## 4. Deploy
-
-Google only allows sign-in on `https://` origins (except localhost), so put the app behind HTTPS.
-
-**Docker**
-```bash
-docker build -t nearby .
-docker run -d --name nearby -p 3000:3000 --env-file .env -v nearby-data:/data nearby
-```
-
-**Caddy** (automatic HTTPS), in your `Caddyfile`:
-```
-your-domain.com {
-  reverse_proxy localhost:3000
-}
-```
-Set `NODE_ENV=production` and `TRUST_PROXY=1` so cookies are marked `Secure`.
-
-## 5. Security notes
-
-- Google ID tokens are verified on the server (audience = your client ID, email must be verified). The page never decides who is admin or owner.
-- Sessions are random 256-bit tokens in an `HttpOnly`, `SameSite=Lax` cookie. Only a hash of the token is stored.
-- Every write needs a custom `X-Requested-With` header and a JSON body, which blocks cross-site request forgery.
-- A strict Content-Security-Policy allows only your own scripts plus Google's sign-in script.
-- Rate limits cover sign-in and booking creation. The limiter is in memory, so it resets on restart.
-- Owners see client names only. Admins also see client emails.
-
-## 6. Backups and upgrades
-
-Everything lives in one SQLite file. Back it up while the app runs with:
-```bash
-sqlite3 data/nearby.db ".backup backup.db"
-```
-Tables: `users`, `sessions`, `businesses`, `bookings` (reviews are columns on bookings).
-
-## 7. Tests
+Open `http://localhost:8889` to use the frontend and emulated function routes. The data API needs a provisioned Netlify Database with the deployed migrations. Before that deployment, the homepage still renders and displays a retry message rather than requiring Claude or leaving a blank page.
 
 ```bash
-npm test
+npm run check
+npm run db:generate -- --name describe_schema_change
 ```
-Covers stats maths, double-booking protection and cascading deletes.
 
-## Known limits
+The first command checks TypeScript. The second generates migration files after a schema change; Netlify applies them automatically during deployment.
 
-- SQLite suits a single server and thousands of bookings. For several servers, move to Postgres.
-- Opening hours are free text. Bookable times are fixed hourly slots (09:00 to 16:00) for the next 7 days, set in `server.js` (`SLOTS`).
-- No email or SMS notifications yet.
+## Booking behavior
+
+- Appointments use hourly slots from 09:00 to 16:00 UTC over the next seven days. Past slots are disabled; opening hours remain descriptive text.
+- Active bookings have a database-enforced unique business/date/time constraint, preventing double bookings even with concurrent requests.
+- Service prices are taken from the listing on the server and stored as integer cents, not trusted from the browser.
+- Rating is the average of client reviews. Efficiency is the share of resolved bookings completed on time; declines, late visits, and no-shows lower it.
+- Visitors can view availability and anonymized reviews without signing in. Customer identity and visit details are visible only to the client, the assigned owner, or an administrator. Only administrators can search account email addresses.
+- Changes refresh after saving and periodically while browsing. Database or network failures show a retry action. There are no booking notification emails or SMS messages.
