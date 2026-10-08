@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nearby – Book local businesses</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f4f6f9;--card:#fff;--ink:#14213d;--mute:#5b6678;--line:#dfe4ec;--act:#0f766e;--actink:#fff;--star:#e59a00;--ok:#15803d;--mid:#b45309;--bad:#b91c1c;--chip:#eaf0f6;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1522;--card:#17202f;--ink:#eef2f8;--mute:#9aa6ba;--line:#2a3548;--act:#2dd4bf;--actink:#04201c;--star:#fbbf24;--ok:#4ade80;--mid:#fbbf24;--bad:#f87171;--chip:#222d40}}
+:root[data-theme="dark"]{--bg:#0e1522;--card:#17202f;--ink:#eef2f8;--mute:#9aa6ba;--line:#2a3548;--act:#2dd4bf;--actink:#04201c;--star:#fbbf24;--ok:#4ade80;--mid:#fbbf24;--bad:#f87171;--chip:#222d40}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 'DM Sans',system-ui,sans-serif}
+h1,h2,h3{font-family:'Bricolage Grotesque','DM Sans',system-ui,sans-serif;margin:0;line-height:1.15}
+header{padding:18px 16px 4px;max-width:960px;margin:auto;display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+header h1{font-size:2rem;font-weight:800}
+.acct{display:flex;gap:8px;align-items:center;font-size:.88rem;color:var(--mute)}.acct img{width:30px;height:30px;border-radius:50%}
+nav{display:flex;gap:6px;padding:8px 16px;max-width:960px;margin:auto;position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);z-index:5}
+nav button{flex:1;padding:10px 6px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;font:inherit;font-weight:500;cursor:pointer}
+nav button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+main{max-width:960px;margin:auto;padding:8px 16px 40px}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--act);outline-offset:2px}
+.tools{display:grid;gap:8px;grid-template-columns:1fr;margin:8px 0 14px}
+@media(min-width:620px){.tools{grid-template-columns:2fr 1fr 1fr}}
+input,select,textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit}
+label{display:block;font-size:.85rem;color:var(--mute);margin:10px 0 4px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.biz{display:flex;flex-direction:column;gap:10px}
+.top{display:flex;gap:12px;align-items:flex-start}
+.em{font-size:1.9rem;width:52px;height:52px;border-radius:12px;background:var(--chip);display:grid;place-items:center;flex:none}
+.meta{color:var(--mute);font-size:.88rem}
+.stars{color:var(--star);letter-spacing:1px}
+.stats{display:flex;gap:14px;align-items:center}
+.ring{--p:90;width:58px;height:58px;border-radius:50%;display:grid;place-items:center;flex:none;background:conic-gradient(var(--c) calc(var(--p)*1%),var(--line) 0)}
+.ring span{width:46px;height:46px;border-radius:50%;background:var(--card);display:grid;place-items:center;font-weight:700;font-size:.8rem}
+.ok{--c:var(--ok)}.mid{--c:var(--mid)}.bad{--c:var(--bad)}
+.btn{padding:11px 16px;border:0;border-radius:10px;background:var(--act);color:var(--actink);font:inherit;font-weight:700;cursor:pointer}
+.btn.ghost{background:var(--chip);color:var(--ink)}.btn.sm{padding:7px 11px;font-size:.88rem}.btn.danger{background:var(--bad);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chip{padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:.9rem;cursor:pointer}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}.chip:disabled{opacity:.35;text-decoration:line-through;cursor:not-allowed}
+.modal{position:fixed;inset:0;background:rgba(10,15,25,.6);display:none;align-items:flex-end;justify-content:center;z-index:20}
+.modal.open{display:flex}
+.sheet{background:var(--bg);width:100%;max-width:640px;max-height:92%;overflow:auto;border-radius:18px 18px 0 0;padding:18px 16px calc(24px + env(safe-area-inset-bottom,0px))}
+@media(min-width:700px){.modal{align-items:center}.sheet{border-radius:18px}}
+.sheet h3{margin:16px 0 8px;font-size:1.05rem}
+.svc{display:flex;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer;width:100%;color:var(--ink);font:inherit;text-align:left;margin-bottom:6px}
+.svc.on{border-color:var(--act);box-shadow:0 0 0 2px var(--act)}
+.tag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.78rem;font-weight:700;background:var(--chip)}
+.t-pending,.t-late{color:var(--mid)}.t-confirmed{color:var(--act)}.t-completed{color:var(--ok)}.t-declined,.t-cancelled,.t-noshow{color:var(--bad)}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.tiles .card{text-align:center;padding:10px 6px}.tiles b{font-family:'Bricolage Grotesque',sans-serif;font-size:1.5rem;display:block}
+.empty,.note{text-align:center;color:var(--mute);padding:28px 12px}
+.note{background:var(--chip);border-radius:10px;padding:10px 12px;margin:8px 0;text-align:left;font-size:.9rem}
+.list{display:grid;gap:10px}.x{float:right}.rev{border-top:1px solid var(--line);padding:8px 0;font-size:.92rem}
+.starpick button{background:none;border:0;font-size:2rem;color:var(--line);cursor:pointer;padding:0 2px}.starpick button.on{color:var(--star)}
+h2.sec{font-size:1.15rem;margin:22px 0 8px}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:30;max-width:90%}
+#toast.show{opacity:1}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header><h1>Nearby</h1><div class="acct" id="acct"></div></header>
+<nav id="nav"></nav>
+<main id="app"><div class="empty">Connecting to the shared database…</div></main>
+<div class="modal" id="modal" onclick="if(event.target===this)closeM()"><div class="sheet" id="sheet"></div></div>
+<div id="toast" role="status"></div>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let db,user,me={id:null},isAdmin=false,canWrite=true,view='discover',q='',cat='All',sort='rating',bizSel=null,sel=null,rate=null,F=null,armed=null,tok=0,pend=0,BK=[];
+const D={biz:[],raw:[],bookings:{},responses:{},reviews:{},listings:{}};
+const SLOTS=['09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00'];
+const RESOLVED=['completed','late','declined','noshow'];
+const lbl={pending:'Waiting for business',confirmed:'Confirmed',completed:'Completed on time',late:'Completed late',declined:'Declined',cancelled:'Cancelled',noshow:'No-show'};
+const biz=id=>D.biz.find(b=>b.id===id);
+const myBiz=()=>D.biz.filter(b=>b.ownerId&&b.ownerId===me.id);
+const canBiz=()=>isAdmin||myBiz().length>0;
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const days=()=>Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return{v:iso(d),l:d.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})}});
+const stars=r=>{const n=Math.round(r);return '★'.repeat(n)+'☆'.repeat(5-n)};
+const cls=e=>e==null?'':e>=90?'ok':e>=75?'mid':'bad';
+const toast=m=>{const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2600)};
+const closeM=()=>$('modal').classList.remove('open');
+const openM=()=>$('modal').classList.add('open');
+
+// ---------- data layer ----------
+function calc(){
+ D.biz=D.raw.map(b=>{const o=b.ownerId&&D.listings[b.ownerId]&&D.listings[b.ownerId][b.id];return o?{...b,...o,id:b.id,ownerId:b.ownerId,base:b.base}:b});
+ const a=[];
+ for(const c in D.bookings)for(const id in D.bookings[c]){
+  const k={...D.bookings[c][id],id,cid:c,key:c+'~'+id},b=biz(k.bid);
+  const r=b&&b.ownerId&&D.responses[b.ownerId]&&D.responses[b.ownerId][k.key];
+  k.st=k.cancelled?'cancelled':(r?r.status:'pending');
+  k.rv=D.reviews[c]&&D.reviews[c][id]&&['completed','late'].includes(k.st)?D.reviews[c][id]:null;
+  a.push(k)}
+ BK=a.sort((x,y)=>(y.created||0)-(x.created||0));
+}
+function stats(b){const s=b.base||{};let rc=s.rc||0,rs=s.rs||0,res=s.res||0,ot=s.ot||0;
+ BK.forEach(k=>{if(k.bid!==b.id)return;if(RESOLVED.includes(k.st))res++;if(k.st==='completed')ot++;if(k.rv){rc++;rs+=k.rv.stars}});
+ return{r:rc?rs/rc:0,rc,e:res?Math.round(100*ot/res):null}}
+const taken=(bid,d,t)=>BK.some(k=>k.bid===bid&&k.date===d&&k.time===t&&['pending','confirmed'].includes(k.st));
+async function put(coll,uid,id,val){const r=db.doc(coll+'/'+uid);if(D[coll][uid])await r.update({items:{[id]:val}});else await r.set({items:{[id]:val}})}
+async function drop(coll,uid,id){const cur={...(D[coll][uid]||{})};delete cur[id];await db.doc(coll+'/'+uid).set({items:cur})}
+async function wr(f,ok){try{await f();if(ok)toast(ok);return true}catch(e){toast(e.code==='quota_exceeded'?'The database is full. Ask the admin to clear old data.':'Could not save. Your account may not have contributor access.');return false}}
+async function nm(ids){const ps=await user.profiles([...new Set(ids.filter(Boolean))]);return id=>(ps[id]&&ps[id].name)||'Customer'}
+
+// ---------- shared pieces ----------
+const ring=e=>`<div class="ring ${cls(e)}" style="--p:${e==null?0:e}" title="Efficiency rate: share of resolved bookings that were completed on time"><span>${e==null?'New':e+'%'}</span></div>`;
+function sched(){if(pend)return;pend=1;requestAnimationFrame(()=>{pend=0;calc();draw()})}
+function nav(){const t=[['discover','Discover'],['mine','My bookings'],canBiz()&&['biz','Business'],isAdmin&&['admin','Admin']].filter(Boolean);
+ $('nav').innerHTML=t.map(([k,l])=>`<button class="${view===k?'on':''}" onclick="go('${k}')">${l}</button>`).join('')}
+function go(v){view=v;$('app').innerHTML='';draw()}
+function acct(){$('acct').innerHTML=`<img alt="" src="${esc(me.avatarUrl||'')}"><span>${esc(me.name||'You')}${me.email?' ('+esc(me.email)+')':''} · ${isAdmin?'Admin':myBiz().length?'Business owner':'Client'}</span>`}
+async function draw(){nav();acct();
+ if(!me.id){$('app').innerHTML='<div class="empty">Sign in to claude.ai to browse and book.</div>';return}
+ if(view==='discover'){if(!$('grid'))shell();fillGrid()}
+ else{const t=++tok,h=view==='mine'?await vMine():view==='biz'?await vBiz():await vAdmin();if(t===tok)$('app').innerHTML=h}}
+function shell(){const cats=['All',...new Set(D.biz.map(b=>b.cat))];
+ $('app').innerHTML=(canWrite?'':'<div class="note">You can browse, but your access level does not allow booking. Ask the owner for contributor access.</div>')+`<div class="tools"><input placeholder="Search businesses or services" value="${esc(q)}" oninput="q=this.value;fillGrid()" aria-label="Search">
+ <select onchange="cat=this.value;fillGrid()" aria-label="Category">${cats.map(c=>`<option ${c===cat?'selected':''}>${esc(c)}</option>`).join('')}</select>
+ <select onchange="sort=this.value;fillGrid()" aria-label="Sort"><option value="rating" ${sort==='rating'?'selected':''}>Top rated</option><option value="eff" ${sort==='eff'?'selected':''}>Most efficient</option><option value="name" ${sort==='name'?'selected':''}>Name A–Z</option></select></div><div class="grid" id="grid"></div>`}
+function fillGrid(){const g=$('grid');if(!g)return;
+ let l=D.biz.map(b=>({b,s:stats(b)})).filter(({b})=>(cat==='All'||b.cat===cat)&&((b.name||'')+b.cat+(b.services||[]).map(s=>s.n).join()).toLowerCase().includes(q.toLowerCase()));
+ l.sort((a,c)=>sort==='rating'?c.s.r-a.s.r:sort==='eff'?(c.s.e??-1)-(a.s.e??-1):a.b.name.localeCompare(c.b.name));
+ g.innerHTML=l.length?l.map(({b,s})=>`<article class="card biz"><div class="top"><div class="em" aria-hidden="true">${esc(b.em||'🏪')}</div><div><h2 style="font-size:1.15rem">${esc(b.name)}</h2><div class="meta">${esc(b.cat)} · ${esc(b.addr)}</div></div></div>
+ <div class="stats">${ring(s.e)}<div><span class="stars">${stars(s.r)}</span> <b>${s.rc?s.r.toFixed(1):'–'}</b><div class="meta">${s.rc} reviews · ${s.e==null?'no efficiency data yet':s.e+'% efficiency'}</div></div></div>
+ <div class="row"><button class="btn" onclick="openBiz('${b.id}')">Book or meet</button></div></article>`).join(''):'<div class="empty">No businesses yet. An admin can add them in the Admin tab.</div>'}
+
+// ---------- client ----------
+function openBiz(id){sel={bid:id,svc:0,date:days()[0].v,time:null,flag:0};drawBiz();openM()}
+function drawBiz(){const b=biz(sel.bid),s=stats(b),ds=days(),sv=b.services||[];
+ $('sheet').innerHTML=`<button class="btn ghost sm x" onclick="closeM()">Close</button>
+ <div class="top"><div class="em" aria-hidden="true">${esc(b.em||'🏪')}</div><div><h2>${esc(b.name)}</h2><div class="meta">${esc(b.addr)} · ${esc(b.hours)}</div></div></div><p>${esc(b.about)}</p>
+ <div class="stats">${ring(s.e)}<div><span class="stars">${stars(s.r)}</span> <b>${s.rc?s.r.toFixed(1):'–'}</b><div class="meta">${s.rc} ratings · efficiency ${s.e==null?'not yet measured':s.e+'%'}<br>Efficiency = resolved bookings completed on time.</div></div></div>
+ <h3>Choose a service</h3>${sv.map((x,i)=>`<button class="svc ${sel.svc===i?'on':''}" onclick="sel.svc=${i};drawBiz()"><span>${esc(x.n)}<br><span class="meta">${x.min} min</span></span><b>${x.price?'$'+x.price:'Free'}</b></button>`).join('')}
+ <h3>Pick a day</h3><div class="row">${ds.map(d=>`<button class="chip ${sel.date===d.v?'on':''}" onclick="sel.date='${d.v}';sel.time=null;drawBiz()">${d.l}</button>`).join('')}</div>
+ <h3>Pick a time</h3><div class="row">${SLOTS.map(t=>`<button class="chip ${sel.time===t?'on':''}" ${taken(b.id,sel.date,t)?'disabled':''} onclick="sel.time='${t}';drawBiz()">${t}</button>`).join('')}</div>
+ <div class="row" style="margin-top:16px"><button class="btn" ${sel.time&&canWrite&&!sel.flag?'':'disabled'} onclick="book()">Request booking</button>${canWrite?'':'<span class="meta">Booking needs contributor access.</span>'}</div>
+ <h3>Reviews</h3>${BK.filter(k=>k.bid===b.id&&k.rv&&k.rv.text).slice(0,8).map(k=>`<div class="rev"><span class="stars">${stars(k.rv.stars)}</span><br>${esc(k.rv.text)}</div>`).join('')||'<div class="meta">No written reviews yet.</div>'}`}
+async function book(){const b=biz(sel.bid),s=(b.services||[])[sel.svc];if(!s||!sel.time)return;
+ if(taken(b.id,sel.date,sel.time)){toast('That time was just taken. Pick another.');drawBiz();return}
+ sel.flag=1;const id='k'+Date.now().toString(36);
+ const ok=await wr(()=>put('bookings',me.id,id,{bid:b.id,svc:s.n,price:s.price||0,date:sel.date,time:sel.time,created:Date.now()}),'Booking requested. '+b.name+' will confirm shortly.');
+ sel.flag=0;if(ok){closeM();go('mine')}else drawBiz()}
+async function vMine(){const l=BK.filter(k=>k.cid===me.id);if(!l.length)return '<div class="empty">No bookings yet. Find a business in Discover and book a time.</div>';
+ return '<div class="list">'+l.map(k=>{const b=biz(k.bid)||{name:'Removed business',em:'🏪'};return `<div class="card"><div class="row" style="justify-content:space-between"><h2 style="font-size:1.05rem">${esc(b.em)} ${esc(b.name)}</h2><span class="tag t-${k.st}">${lbl[k.st]}</span></div>
+ <div class="meta">${esc(k.svc)} · ${k.date} at ${k.time} · ${k.price?'$'+k.price:'Free'}</div><div class="row" style="margin-top:8px">
+ ${['pending','confirmed'].includes(k.st)?`<button class="btn ghost sm" onclick="cancelK('${k.id}')">Cancel booking</button>`:''}
+ ${['completed','late'].includes(k.st)&&!k.rv?`<button class="btn sm" onclick="openRate('${k.id}')">Rate this visit</button>`:''}${k.rv?'<span class="meta">Thanks for rating.</span>':''}</div></div>`}).join('')+'</div>'}
+const cancelK=id=>wr(()=>put('bookings',me.id,id,{cancelled:true}),'Booking cancelled');
+function openRate(id){rate={id,s:0,t:''};drawRate();openM()}
+function drawRate(){$('sheet').innerHTML=`<h2>Rate this visit</h2><div class="starpick" role="group" aria-label="Star rating">${[1,2,3,4,5].map(i=>`<button class="${rate.s>=i?'on':''}" aria-label="${i} stars" onclick="rate.s=${i};drawRate()">★</button>`).join('')}</div>
+ <textarea rows="3" placeholder="What went well? (optional)" oninput="rate.t=this.value">${esc(rate.t)}</textarea><div class="row" style="margin-top:12px"><button class="btn" ${rate.s?'':'disabled'} onclick="sendRate()">Submit rating</button><button class="btn ghost" onclick="closeM()">Not now</button></div>`}
+async function sendRate(){if(await wr(()=>put('reviews',me.id,rate.id,{stars:rate.s,text:rate.t.trim().slice(0,500),ts:Date.now()}),'Rating submitted'))closeM()}
+
+// ---------- business ----------
+function bkRow(k,n,b,canAct){const clash=BK.some(o=>o.key!==k.key&&o.bid===k.bid&&o.date===k.date&&o.time===k.time&&o.st==='confirmed');
+ return `<div class="card"><div class="row" style="justify-content:space-between"><b>${esc(n(k.cid))}</b><span class="tag t-${k.st}">${lbl[k.st]}</span></div><div class="meta">${esc(k.svc)} · ${k.date} at ${k.time}</div>
+ ${canAct?`<div class="row" style="margin-top:8px">${k.st==='pending'?`<button class="btn sm" ${clash?'disabled title="Time already confirmed for someone else"':''} onclick="act('${k.key}','confirmed')">Confirm</button><button class="btn danger sm" onclick="act('${k.key}','declined')">Decline</button>`:''}
+ ${k.st==='confirmed'?`<button class="btn sm" onclick="act('${k.key}','completed')">Done on time</button><button class="btn ghost sm" onclick="act('${k.key}','late')">Done late</button><button class="btn danger sm" onclick="act('${k.key}','noshow')">No-show</button>`:''}</div>`:''}</div>`}
+async function act(key,st){const k=BK.find(x=>x.key===key),b=k&&biz(k.bid);if(!b||!b.ownerId){toast('Assign an owner to this business first.');return}
+ await wr(()=>put('responses',b.ownerId,key,{status:st,ts:Date.now()}))}
+async function vBiz(){const list=isAdmin?D.biz:myBiz();if(!list.length)return '<div class="empty">No business is assigned to your account yet.</div>';
+ if(!list.some(b=>b.id===bizSel))bizSel=list[0].id;const b=biz(bizSel),s=stats(b),l=BK.filter(k=>k.bid===b.id),n=await nm(l.map(k=>k.cid)),can=b.ownerId===me.id||isAdmin;
+ return `<div class="card" style="margin-top:8px"><label for="bs" style="margin-top:0">Managing</label><select id="bs" onchange="bizSel=this.value;draw()">${list.map(x=>`<option value="${x.id}" ${x.id===bizSel?'selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
+ <div class="tiles"><div class="card"><b>${s.rc?s.r.toFixed(1):'–'}</b><span class="meta">Rating</span></div><div class="card"><b>${s.e==null?'–':s.e+'%'}</b><span class="meta">Efficiency</span></div><div class="card"><b>${l.filter(k=>k.st==='pending').length}</b><span class="meta">To confirm</span></div></div>
+ ${b.ownerId===me.id?`<div class="row"><button class="btn sm" onclick="editBiz('${b.id}','owner')">Edit my listing</button></div>`:''}
+ ${b.ownerId?'':`<div class="note">This business has no owner yet, so bookings can't be answered. <button class="btn sm" onclick="assignMe('${b.id}')">Assign to me</button></div>`}
+ <p class="meta">Efficiency rises when bookings are completed on time. Declines, late work and no-shows lower it.</p>
+ ${l.length?'<div class="list">'+l.map(k=>bkRow(k,n,b,can&&b.ownerId)).join('')+'</div>':'<div class="empty">No bookings for this business yet.</div>'}`}
+const assignMe=id=>wr(()=>db.doc('businesses/'+id).update({ownerId:me.id}),'Assigned to you');
+
+// ---------- admin ----------
+async function vAdmin(){const n=await nm([...BK.map(k=>k.cid),...D.biz.map(b=>b.ownerId)]);const rv=BK.filter(k=>k.rv);
+ return `<div class="tiles"><div class="card"><b>${D.biz.length}</b><span class="meta">Businesses</span></div><div class="card"><b>${BK.length}</b><span class="meta">Bookings</span></div><div class="card"><b>${BK.filter(k=>k.st==='pending').length}</b><span class="meta">Pending</span></div></div>
+ <div class="row" style="justify-content:space-between"><h2 class="sec">Businesses</h2><button class="btn sm" onclick="editBiz()">Add business</button></div>
+ <div class="list">${D.biz.map(b=>`<div class="card"><div class="row" style="justify-content:space-between"><b>${esc(b.em||'🏪')} ${esc(b.name)}</b><span class="meta">Owner: ${b.ownerId?esc(n(b.ownerId)):'none'}</span></div>
+ <div class="row" style="margin-top:8px"><button class="btn ghost sm" onclick="editBiz('${b.id}')">Edit</button><button class="btn danger sm" onclick="delBiz('${b.id}')">${armed===b.id?'Tap again to delete':'Delete'}</button></div></div>`).join('')||'<div class="empty">No businesses yet.</div>'}</div>
+ <h2 class="sec">All bookings</h2><div class="list">${BK.slice(0,40).map(k=>{const b=biz(k.bid);return `<div class="card"><div class="row" style="justify-content:space-between"><b>${esc(n(k.cid))} → ${esc(b?b.name:'Removed business')}</b><span class="tag t-${k.st}">${lbl[k.st]}</span></div><div class="meta">${esc(k.svc)} · ${k.date} ${k.time}</div>
+ <div class="row" style="margin-top:8px"><button class="btn danger sm" onclick="rm('bookings','${k.cid}','${k.id}')">Remove booking</button></div></div>`}).join('')||'<div class="empty">No bookings yet.</div>'}</div>
+ <h2 class="sec">Reviews</h2><div class="list">${rv.map(k=>`<div class="card"><span class="stars">${stars(k.rv.stars)}</span> <b>${esc(n(k.cid))}</b> on ${esc((biz(k.bid)||{}).name||'a removed business')}<div class="meta">${esc(k.rv.text||'No comment')}</div>
+ <div class="row" style="margin-top:8px"><button class="btn danger sm" onclick="rm('reviews','${k.cid}','${k.id}')">Remove review</button></div></div>`).join('')||'<div class="empty">No reviews yet.</div>'}</div>`}
+const rm=(c,u,id)=>wr(()=>drop(c,u,id),'Removed');
+async function delBiz(id){if(armed!==id){armed=id;draw();setTimeout(()=>{if(armed===id){armed=null;draw()}},4000);return}armed=null;await wr(()=>db.doc('businesses/'+id).delete(),'Business deleted')}
+async function editBiz(id,mode){const b=id?biz(id):{};F={mode,id:id||'b'+Date.now().toString(36),name:b.name||'',cat:b.cat||'',em:b.em||'🏪',addr:b.addr||'',hours:b.hours||'Mon–Sat, 9:00–17:00',about:b.about||'',ownerId:b.ownerId||null,base:b.base||null,
+ sv:(b.services||[{n:'Meet & greet',min:15,price:0}]).map(s=>`${s.n} | ${s.min} | ${s.price}`).join('\n')};await drawForm();openM()}
+async function drawForm(){const n=await nm([F.ownerId]);const f=(k,l,t)=>`<label>${l}</label><input value="${esc(F[k])}" oninput="F.${k}=this.value"${t||''}>`;
+ $('sheet').innerHTML=`<h2>${F.mode==='owner'?'Edit my listing':biz(F.id)?'Edit business':'Add business'}</h2>${f('name','Business name')}${f('cat','Category')}${f('em','Emoji',' maxlength="4"')}${f('addr','Address')}${f('hours','Opening hours')}
+ <label>About</label><textarea rows="2" oninput="F.about=this.value">${esc(F.about)}</textarea>
+ <label>Services, one per line: name | minutes | price</label><textarea rows="4" oninput="F.sv=this.value">${esc(F.sv)}</textarea>
+ ${F.mode==='owner'?'':`<label>Owner account: ${F.ownerId?esc(n(F.ownerId)):'none'}</label><input placeholder="Search people by name or email" oninput="ownerSearch(this.value)"><div id="ores" class="row" style="margin-top:6px"></div>`}
+ <div class="row" style="margin-top:14px"><button class="btn" ${F.name.trim()?'':'disabled'} onclick="saveBiz()">Save business</button><button class="btn ghost" onclick="closeM()">Cancel</button></div>`}
+async function ownerSearch(v){const r=await user.search(v);$('ores').innerHTML=r.map(p=>`<button class="chip" data-id="${esc(p.id)}">${esc(p.name)}${p.email?' ('+esc(p.email)+')':''}</button>`).join('')||'<span class="meta">No matches</span>';
+ $('ores').querySelectorAll('button').forEach(x=>x.onclick=()=>{F.ownerId=x.dataset.id;drawForm()})}
+async function saveBiz(){const sv=F.sv.split('\n').map(l=>l.split('|').map(x=>x.trim())).filter(a=>a[0]).map(a=>({n:a[0],min:+a[1]||30,price:+a[2]||0}));
+ const f={name:F.name.trim(),cat:F.cat.trim()||'Other',em:F.em||'🏪',addr:F.addr,hours:F.hours,about:F.about,services:sv};
+ if(F.mode==='owner'){if(await wr(()=>put('listings',me.id,F.id,f),'Listing updated'))closeM();return}
+ const d={...f,ownerId:F.ownerId||null};if(F.base)d.base=F.base;
+ const prev=D.raw.find(x=>x.id===F.id),po=prev&&prev.ownerId;
+ if(await wr(async()=>{await db.doc('businesses/'+F.id).set(d);if(po&&D.listings[po]&&D.listings[po][F.id])await drop('listings',po,F.id)},'Business saved'))closeM()}
+
+// ---------- start ----------
+async function init(){
+ user=await claude.use('user');db=await claude.use('db');
+ if(!db||!user){$('app').innerHTML='<div class="empty">The shared database is not available here. Open this page signed in to claude.ai.</div>';return}
+ me=await user.me();isAdmin=await user.canEdit();canWrite=(await user.can('data.write'))!==false;
+ const bad=e=>{$('app').innerHTML='<div class="empty">Could not load data ('+esc(e.code)+'). Reload the page.</div>'};
+ db.collection('businesses').onSnapshot(s=>{D.raw=s.docs.map(d=>({id:d.id,...d.data()}));sched()},bad);
+ ['bookings','responses','reviews','listings'].forEach(c=>db.collection(c).onSnapshot(s=>{const m={};s.docs.forEach(d=>{m[d.id]=(d.data()||{}).items||{}});D[c]=m;sched()},bad));
+ sched()}
+(function w(n){if(window.claude)init();else if(n<100)setTimeout(()=>w(n+1),100);else $('app').innerHTML='<div class="empty">Open this page in claude.ai to connect.</div>'})(0);
+</script>
+</body>
+</html>
